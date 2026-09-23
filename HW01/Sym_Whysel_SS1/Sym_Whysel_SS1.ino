@@ -3,7 +3,6 @@ const int ledPin02 = 5;
 const int ledPin03 = 6;
 const int ledPin04 = 7;
 
-int phase = 0;
 int ms = 500;
 
 void setup() {
