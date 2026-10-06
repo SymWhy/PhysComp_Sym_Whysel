@@ -223,7 +223,7 @@ void updateLEDs(float decFloor = 50) {
   if (withPeak) {
     rawVol = catchPeak(windowPeak);
   } else {
-    rawVol = catchRMS(samplesRMS);
+    rawVol = catchRMS(samplesRMS) * 1.4142;
   }
 
   if (partyMode) {
@@ -263,18 +263,18 @@ void updateLEDs(float decFloor = 50) {
 
   } else {
     float smoothedRMS = smoothVol(volumedB, lastRMS, 0.5);
-
+    lastRMS = smoothedRMS;
+    
     for (int i = 0; i < pinCount; i++) {
       float zoneMin = segment * i;
       float zoneMax = segment * (i + 1);
 
       float processedRMS = processValue(smoothedRMS, zoneMin, zoneMax, 0, offset);
 
-      lastRMS = processedRMS;
-
       // Serial.printf("[%i] ", processedVol ? processedVol : 0);
       analogWrite(pins[i], processedRMS);
     }
+    
   }
 }
 
