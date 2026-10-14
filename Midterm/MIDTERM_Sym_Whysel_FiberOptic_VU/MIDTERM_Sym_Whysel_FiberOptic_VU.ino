@@ -3,7 +3,7 @@
         by Sym Whysel
 
  Audio-reactive LED wearable.
- But can be used for pretty much any array of LEDs, two buttons, and a speaker.
+ But can be used for pretty much any array of LEDs, two buttons, and a microphone.
 
  Sources:
  https://forum.arduino.cc/t/what-does-abort-do/141312/23?page=2
