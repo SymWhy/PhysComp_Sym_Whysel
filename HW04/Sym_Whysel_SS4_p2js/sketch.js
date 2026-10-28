@@ -3,190 +3,176 @@
     by Sym Whysel
 */
 
-let serial; // Variable for an instance of the serialport library
-let portName = "COM6"; // my specific port name
-let options = {baudRate: 9600}; // rate of comms
+let port;                       // variable for Web Serial port instance
+let baudRate = 115200;          // NOTE: baud rate must match in Arduino sketch
 
-let myColor;
+let myText = `Mic A: 0 | Mic B: 0\nMic C: 0 | Mic D: 0`;
 
-let myText = `Mic A: 0\nMic B: 0 | Mic C: 0`;
-
-const circAngle = 45; // rotation of the circle
-const triAngle = 0; // rotation of the triangles
-const sides = 3;
+const circAngle = 0; // rotation of the circle
+const trisAngle = 0; // rotation of the triangles
+const sides = 4;
 const master_radius = 150;
 const dB_CEILING = 60;
 
 let angle_A;
 let angle_B;
 let angle_C;
+let angle_D;
 
 let angles;
 
 let coords_A;
 let coords_B;
 let coords_C;
+let coords_D;
 
 let smallRadius;
+let lastAngle;
 var step;
 
 let in_A = 0;
 let in_B = 0;
 let in_C = 0;
+let in_D = 0;
 
 let coordX = 0;
 let coordY = 0;
 
 function setup() {
-    // p5 serial setup
-    // list of available callback functions
-    serial = new p5.SerialPort();
-    serial.on('list', printList);
-    serial.on('connected', serverConnected);
-    serial.on('open', portOpen);
-    serial.on('data', serialEvent);
-    serial.on('error', serialError);
-    serial.on('close', portClose);
- 
-    serial.list();                            // list the serial ports
-    serial.open(portName, options);           // open a serial port
+  //serial communication setup
+  port = createSerial();          // create the serial port instance
 
-    createCanvas(1080, 720); //set size of canvas
-    textSize(42); // set text size
-    textAlign(CENTER, CENTER);  // set text alignment
+  let used = usedSerialPorts();   // store previously used serial ports
 
-    smallRadius = master_radius * 0.8;
-    step = TWO_PI / sides;
+  if (used.length > 0)            // if there are previously used ports...
+  {
+    port.open(used[0], baudRate); // reopen last used serial port
+  }
 
-    angle_A = 0;
-    angle_B = angle_A + step;
-    angle_C = angle_B + step;
+  createCanvas(1080, 720); //set size of canvas
+  textSize(42); // set text size
+  textAlign(CENTER, CENTER);  // set text alignment
 
-    coords_A = [master_radius * sin(angle_A), master_radius * cos(angle_A)];
-    coords_B = [master_radius * sin(angle_B), master_radius * cos(angle_B)];
-    coords_C = [master_radius * sin(angle_C), master_radius * cos(angle_C)];
+  smallRadius = master_radius * 0.8;
+  step = TWO_PI / sides;
 
-    myColor = color(0,0,0);
+  angle_A = 0;
+  angle_B = angle_A + step;
+  angle_C = angle_B + step;
+  angle_D = angle_C + step;
 
-    angles = [angle_A, angle_B, angle_C];
+  lastAngle = 0;
+
+  coords_A = [master_radius * sin(angle_A), master_radius * cos(angle_A)];
+  coords_B = [master_radius * sin(angle_B), master_radius * cos(angle_B)];
+  coords_C = [master_radius * sin(angle_C), master_radius * cos(angle_C)];
+  coords_D = [master_radius * sin(angle_D), master_radius * cos(angle_D)];
+
+  angles = [angle_A, angle_B, angle_C, angle_D];
 }
 
 function draw() {
 
-    background(255);  // clear frame with background color each draw loop
-    translate(width / 2, height / 2) // Make the center of the screen the new (0, 0)
-    rotate(circAngle);
-    let myAngle = 0;
+  getData();
 
-    stroke(0);
-    noFill();
+  background(255);  // clear frame with background color each draw loop
 
-    circle(0, 0, smallRadius * 2);
+  // draw text first
+  text(myText, width / 2, height - height / 8); // display incoming serial data on canvas
 
-    // source: https://editor.p5js.org/NanoDano/sketches/DPcU4_0ho
+  translate(width / 2, height / 2) // Make the center of the screen the new (0, 0)
+  rotate(circAngle);
+  let myAngle = 0;
 
-    fill(0);  // set fill color to black
+  stroke(0);
+  noFill();
 
-    // Mic A
-    polygon(coords_A[0], coords_A[1], 50 * (in_A ? in_A : 0.1), sides, triAngle); 
-    myAngle += step;
+  circle(0, 0, smallRadius * 2);
 
-    // Mic B
-    polygon(coords_B[0], coords_B[1], 50 * (in_B ? in_B : 0.1), sides, triAngle);
-    myAngle += step;
-    
-    // Mic C
-    polygon(coords_C[0], coords_C[1], 50 * (in_C ? in_C : 0.1), sides, triAngle);
-    myAngle = 0;
+  // source: https://editor.p5js.org/NanoDano/sketches/DPcU4_0ho
 
-    circle(coordX, coordY, 25);
+  fill(0);  // set fill color to black
 
-    text(myText, width/2, height - height/8); // display incoming serial data on canvas
+  // Mic A
+  polygon(coords_A[0], coords_A[1], 50 * (in_A ? in_A : 0.1), sides, trisAngle);
+  myAngle += step;
+
+  // Mic B
+  polygon(coords_B[0], coords_B[1], 50 * (in_B ? in_B : 0.1), sides, trisAngle);
+  myAngle += step;
+
+  // Mic C
+  polygon(coords_C[0], coords_C[1], 50 * (in_C ? in_C : 0.1), sides, trisAngle);
+  myAngle += step;
+
+  // Mic D
+  polygon(coords_D[0], coords_D[1], 50 * (in_D ? in_D : 0.1), sides, trisAngle);
+  myAngle = 0;
+
+  circle(coordX, coordY, 25);
+
+  port.clear(); // clear the buffer after reading
+  //NOTE: VERY IMPORTANT TO CLEAR BUFFER each frame, otherwise old data will accumulate and cause lag
 }
 
+function getData() {
+  let inData = port.readUntil('\n'); // separate incoming data by newlines
 
-/* SERIAL FUNCTIONS */
-
-function printList(portList) // gets called when the serial.list() function is called
-{
-  print("List of Available Serial Ports: ");
-  for (var i = 0; i < portList.length; i++) 
-  {
-    print(i + portList[i]); //print list of available serial ports to console
-  }
-}
-
-function serverConnected() //gets called when we connect to the serial server
-{
-  print("CONNECTED TO SERVER");
-}
- 
-function portOpen() //gets called when the serial port opens
-{
-  print("SERIAL PORT OPEN");
-}
- 
-function serialEvent() //gets called when new data arrives
-{
-  let inData = serial.readLine(); //Store incoming data as a string
-  
-  if (inData != []) {
-    // print(inData);
+  if (inData.length > 0) {
     let values = inData.split(",");
 
-    let new_A = float(values[0]);
-    let new_B = float(values[1]);
-    let new_C = float(values[2]);
+    values[3] = values[3].split("\n")[0];
+
+    let new_A = Number(values[0]);
+    let new_B = Number(values[1]);
+    let new_C = Number(values[2]);
+    let new_D = Number(values[3]);
 
     // pulsing triangles
 
-    let mapped_A = map(new_A, 0, dB_CEILING, 0, 1);
-    let mapped_B = map(new_B, 0, dB_CEILING, 0, 1);
-    let mapped_C = map(new_C, 0, dB_CEILING, 0, 1);
+    let mapped_A = map(new_A, 0, dB_CEILING, 0, 1, true);
+    let mapped_B = map(new_B, 0, dB_CEILING, 0, 1, true);
+    let mapped_C = map(new_C, 0, dB_CEILING, 0, 1, true);
+    let mapped_D = map(new_D, 0, dB_CEILING, 0, 1, true);
 
-    in_A = lerp(in_A, mapped_A, 0.6);
-    in_B = lerp(in_B, mapped_B, 0.6);
-    in_C = lerp(in_C, mapped_C, 0.6);
+    in_A = lerp(in_A, mapped_A, 0.3);
+    in_B = lerp(in_B, mapped_B, 0.3);
+    in_C = lerp(in_C, mapped_C, 0.3);
+    in_D = lerp(in_C, mapped_D, 0.3);
 
     // get point on circle between angle A and angle B
-    let myAngle;
 
     let indexes = getTopTwoIx(values);
 
-    // print(indexes);
-
+    // get the angles of the loudest and second loudest mics
     let firstAngle = angles[indexes[0]];
     let secondAngle = angles[indexes[1]];
 
-    if (firstAngle > secondAngle) {
-      myAngle = map(values[indexes[0]], 0, 1, firstAngle, secondAngle);
-    } else {
-      myAngle = map(1 - values[indexes[0]], 0, 1, secondAngle, firstAngle);
-    }
+    // get the mic volume value from the loudest mic
+    let firstValue = Number(values[indexes[0]]);
+    let secondValue = Number(values[indexes[1]]);
 
-    // print(myAngle);
+    // get proportions btwn these two values so they fit in a 0-1 scale
+    let myValues = normalizeValues(firstValue, secondValue);
 
-    let coords = pointOnCircle(0, 0, master_radius, myAngle);
+    // this plots the volume value between the loudest and second loudest angle
+    myAngle = map(myValues[0], 0, 1, firstAngle, secondAngle);
 
-    coordX = lerp(coordX, coords[0], 0.2);
-    coordY = lerp(coordY, coords[1], 0.2);
+    myAngle = lerp(lastAngle, myAngle, 0.1);
 
-    print(coordX, coordY);
+    lastAngle = myAngle;
 
-    // myColor = color(in_A, in_B, in_C);
+    // print(values[indexes[0]]);
 
-    myText = `Mic A: ${values[0]}\nMic B: ${values[1]} | Mic C: ${values[2]}`;
+    let radiusMod = map(Number(values[indexes[0]]), 0, dB_CEILING, 0, 1);
+
+    let coords = pointOnCircle(0, 0, smallRadius * radiusMod, myAngle);
+
+    coordX = coords[0];
+    coordY = coords[1];
+
+    myText = `Mic A: ${values[0]} | Mic B: ${values[1]}\nMic C: ${values[2]} | Mic D: ${values[3]}`;
   }
-}
- 
-function serialError(err) //gets called when there's an error
-{
-  print('ERROR: ' + err);
-}
- 
-function portClose() //gets called when the serial port closes
-{
-  print("*____SERIAL PORT CLOSED");
 }
 
 
@@ -199,13 +185,13 @@ function polygon(x, y, radius, numberOfSides, rotationDegrees) {
   const rotationRadians = rotationDegrees * Math.PI / 180; // Convert degrees to radians
 
   beginShape();
-  
-  for (let i = 0; i < numberOfSides; i++) {
-    let plyAngle = 2 * Math.PI / numberOfSides * i + rotationRadians;
+
+  for (let i = 0; i <= numberOfSides; i++) {
+    let plyAngle = TWO_PI / numberOfSides * i + rotationRadians;
 
     let sx = x + radius * Math.sin(plyAngle);
     let sy = y + radius * Math.cos(plyAngle);
-    
+
     vertex(sx, sy);
   }
   endShape(CLOSE);
@@ -220,36 +206,45 @@ function pointOnCircle(startX, startY, radius, angle) {
 }
 
 // Source: codefinity, https://codefinity.com/courses/v2/df141e1d-1b9c-4a2f-afae-b2b2d432758d/2773b6c0-87b3-426e-9375-93864ccc9297/e3482c9d-62fd-4849-966b-3b489bb3ad14
-function normalizeValues(a, b, c) {
-  let sum = abs(a) + abs(b) + abs(c);
-  
+function normalizeValues(a, b, c=0, d=0) {
+  let sum = abs(a) + abs(b) + abs(c) + abs(d);
+
   let norm_A = a / sum;
   let norm_B = b / sum;
   let norm_C = c / sum;
+  let norm_D = d / sum;
 
-  return [norm_A, norm_B, norm_C];
+  return [norm_A, norm_B, norm_C, norm_D];
 }
 
-  // source: https://stackoverflow.com/questions/17039770/how-do-i-get-the-second-largest-element-from-an-array-in-javascript
-  function getTopTwoIx(values) {
-    // initialize with the lowest possible values
-    let max = -Infinity
-    let second = -Infinity;
-    for (const value of values) {
-      if (value > max) {
-        // if the value is higher than our recorded maximum
-        // the old maximum is now our second
-        second = max;
-        // the new value is now our maximum
-        max = value;
-        
-      } else if (value < max && value > second) {
-        // otherwise if the value is less than our recorded maximum
-        // but greater than our recorded second
-        // the value becomes our second
-        second = value;
-      }
+// source: https://stackoverflow.com/questions/17039770/how-do-i-get-the-second-largest-element-from-an-array-in-javascript
+function getTopTwoIx(values) {
+  // initialize with the lowest possible values
+  let max = -Infinity
+  let second = -Infinity;
+  for (const value of values) {
+    if (value > max) {
+      // if the value is higher than our recorded maximum
+      // the old maximum is now our second
+      second = max;
+      // the new value is now our maximum
+      max = value;
+
+    } else if (value < max && value > second) {
+      // otherwise if the value is less than our recorded maximum
+      // but greater than our recorded second
+      // the value becomes our second
+      second = value;
     }
-    
-    return [values.indexOf(max), values.indexOf(second)];
   }
+
+  return [values.indexOf(max), values.indexOf(second)];
+}
+
+function mousePressed() 
+{
+  if (!port.opened()) //if the port is not connected...
+  {
+    port.open(baudRate); // open the serial port using selection pop-up
+  }
+}

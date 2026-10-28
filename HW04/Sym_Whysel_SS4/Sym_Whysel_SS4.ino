@@ -6,22 +6,23 @@
 #include <KISS_FFT_Arduino.h>
 
 /* CONSTANTS */
-const int BAUD_NUM = 9600;
+const int BAUD_NUM = 115200;
 const int READ_RESOLUTION = 12;
 const int READ_RANGE = 4096;
 
 const int SAMPLE_SIZE = 1024; // also fft size
 const float SAMPLE_RATE = 44100.0f; // hz
 
-const int MIC_COUNT = 3;
+const int MIC_COUNT = 4;
 
 const int MIC_PIN_A = 4;
 const int MIC_PIN_B = 5;
 const int MIC_PIN_C = 6;
+const int MIC_PIN_D = 7;
 
 const int PEAK_SAMPLES = 1024;
 
-const int MIC_PINS[3] = {MIC_PIN_A, MIC_PIN_B, MIC_PIN_C};
+const int MIC_PINS[4] = {MIC_PIN_A, MIC_PIN_B, MIC_PIN_C, MIC_PIN_D};
 
 int lastVol = 0;
 
@@ -80,6 +81,7 @@ int getSamples(int pin) {
     samples[i] = sample;
     sum += sample;
   }
+  // Serial.printf("Sample 0: %i | Sum: %i\n", samples[0], sum);
   
   int offset = sum / SAMPLE_SIZE;
 
@@ -116,7 +118,7 @@ float pipeline(int pin) {
 
   float dB = getDecibels(fft.rms() * 1.414, 50);
 
-  Serial.println(dB);
+  // Serial.printf("Offset: %f | RMS: %f | dB: %f\n" , offset, fft.rms(), dB);
 
   return dB;
 }
@@ -126,6 +128,7 @@ void setup() {
   pinMode(MIC_PIN_A, INPUT);
   pinMode(MIC_PIN_B, INPUT);
   pinMode(MIC_PIN_C, INPUT);
+  pinMode(MIC_PIN_D, INPUT);
   
   analogReadResolution(READ_RESOLUTION);
 
@@ -137,10 +140,11 @@ void setup() {
 void loop() {
   
   float a = pipeline(MIC_PIN_A);
-  // float b = pipeline(MIC_PIN_B);
-  // float c = pipeline(MIC_PIN_C);
+  float b = pipeline(MIC_PIN_B);
+  float c = pipeline(MIC_PIN_C);
+  float d = pipeline(MIC_PIN_D);
 
-  // Serial.printf("%f,%f,%f\r\n", a, b, c);
+  Serial.printf("%f,%f,%f,%f\n", a, b, c, d);
 }
 
 
