@@ -1,0 +1,49 @@
+const int PIEZO_PIN = 1;
+const int RES_PWM = 12;   // resolution of PWM duty cycle, 12 is max value
+const unsigned long WAIT_TIME = 100;
+
+int pulseWidth = 127;     // 8-bit 0-255 range, 127 is 50% Duty Cycle
+float frequency = 440;
+
+String inString;
+
+bool waiting = false;
+unsigned long lastMillis;
+
+// source: https://dobrian.github.io/cmp/topics/physics-of-sound/1.frequency-and-pitch.html
+float tonesWht[8] = { 261.6, 293.7, 329.6, 349.2, 392.0, 440.0, 493.9, 523.3 };
+float tonesBlk[5] = { 277.2, 311.1, 370.0, 415.3, 466.2 };
+
+
+void setup() {
+  {
+    Serial.begin(115200);
+    ledcAttach(PIEZO_PIN, frequency, RES_PWM);
+  }
+}
+
+void loop() {
+  if (Serial.available()) {
+    inString = Serial.readStringUntil('\n');
+    Serial.println(inString);
+
+    // only expecting two values, both integers
+    int index = inString.indexOf(',');
+    int blackKey = inString.substring(0, index).toInt();
+    int keyIdx = inString.substring(index + 1).toInt();
+
+    if (blackKey) frequency = tonesBlk[keyIdx];
+    else frequency = tonesWht[keyIdx];
+
+    ledcWriteTone(PIEZO_PIN, frequency);
+    ledcWrite(PIEZO_PIN, pulseWidth);
+    
+    lastMillis = millis();
+    waiting = true;
+  }
+
+  if (waiting && millis() - lastMillis > WAIT_TIME) {
+    waiting = false;
+    ledcWrite(PIEZO_PIN, 0);
+  }
+}

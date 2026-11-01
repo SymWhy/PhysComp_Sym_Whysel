@@ -29,23 +29,38 @@ let lastMillis;
 
 
 function setup() {
+    //serial communication setup
+    port = createSerial();          // create the serial port instance
+
+    let used = usedSerialPorts();   // store previously used serial ports
+
+    if (used.length > 0)            // if there are previously used ports...
+    {
+        port.open(used[0], baudRate); // reopen last used serial port
+    }
+
     createCanvas(1080, 720); //set size of canvas
     background(255);
     piano_x = width / 5;
     piano_y = height / 3;
 
     drawPiano();
+
+    port.clear(); // clear the buffer after reading
+    //NOTE: VERY IMPORTANT TO CLEAR BUFFER each frame, otherwise old data will accumulate and cause lag
 }
 
 
 function draw() {
+    readIncoming();
+
     if (keyPlayed) {
         drawPiano(true);
 
         keyPlayed = false;
         waiting = true;
         lastMillis = millis();
-    }
+    } else if (!waiting) drawPiano();
 
     if (waiting) {
         if (millis() - lastMillis > waitTime) {
@@ -53,10 +68,31 @@ function draw() {
             waiting = false;
         }
     }
+
+    if (!port.opened()) //if the port is not open...
+    {
+        fill(0);
+        strokeWeight(1);
+        textSize(48);
+        text("press the spacebar to connect", width / 5, height / 8);  //show message
+    }
+}
+
+function readIncoming() {
+    //***___SERIAL READ___START
+    let inString = port.readUntil('\n');
+
+    if (inString.length > 0) //if we received serial data...
+    {
+        inString = inString.trim(); // remove newline char at end of message
+    }
+
+    if (inString) print(inString);
 }
 
 
 function drawPiano(pressed = false) {
+    background(255);
     whiteKeys = [];
     blackKeys = [];
 
@@ -64,14 +100,12 @@ function drawPiano(pressed = false) {
     fill(255);
     stroke(0);
     strokeWeight(5);
-    print([pressed, lastKeyBlack, lastKey]);
 
     let counter = 0;
     for (let i = piano_x; i < (WHITE_WIDTH * 8) + piano_x; i += WHITE_WIDTH) {
 
         if (pressed && !lastKeyBlack && lastKey == counter) {
-            fill(127);
-            print("Key pressed!");
+            fill(255 - 64);
         } else {
             fill(255);
         }
@@ -84,6 +118,8 @@ function drawPiano(pressed = false) {
     counter = 0;
 
     // black keys
+    noStroke();
+    textSize(36);
     fill(0);
     for (let i = BLACK_OFFSET + piano_x; i < (BLACK_WIDTH * 5) + (BLACK_OFFSET * 5) + piano_x; i += BLACK_WIDTH + BLACK_OFFSET / 2) {
 
@@ -91,42 +127,56 @@ function drawPiano(pressed = false) {
         if (counter == 2) {
             i += BLACK_WIDTH + BLACK_OFFSET / 2;
         }
-            if (pressed && lastKeyBlack && lastKey == counter) {
-                fill(127);
-            } else {
-                fill(0);
-            }
+        if (pressed && lastKeyBlack && lastKey == counter) {
+            fill(64);
+        } else {
+            fill(0);
+        }
         rect(i, piano_y, BLACK_WIDTH, BLACK_HEIGHT);
         blackKeys.push(i);
 
         counter++;
     }
+
+    // white key labels
+    fill(0);
+
+    let lettersWht = ["C", "D", "E", "F", "G", "A", "B", "C"];
+
+    for (let i = 0; i < 8; i ++) {
+        text(lettersWht[i], whiteKeys[i] + (WHITE_WIDTH / 2) - 5, piano_y + WHITE_HEIGHT - 25);  //show message
+    }
+
+
+    // black key labels
+    fill(255);
+    let lettersBlk = ["C#", "Eb", "F#", "G#", "Bb"];
+    for (let i = 0; i < 5; i ++) {
+        text(lettersBlk[i], blackKeys[i] + (BLACK_WIDTH / 2) - 25, piano_y + BLACK_HEIGHT - 25);  //show message
+    }
 }
 
-
-function mouseClicked(event) {
+function mouseClicked() {
     // source: https://stackoverflow.com/questions/23744605/javascript-get-x-and-y-coordinates-on-mouse-click
     // record x and y
     let x = mouseX;
     let y = mouseY;
 
-    print([x, y]);
-
     // make sure we've actually clicked on the piano
     if (inRange(x, piano_x, (WHITE_WIDTH * 8) + piano_x)
         && inRange(y, piano_y, piano_y + WHITE_HEIGHT)) {
-        let blackKey = false;
+        let blackKey = 0;
         let keyID;
         // check if black key
         for (let i = 0; i < 5; i++) {
             if (inRange(x, blackKeys[i], blackKeys[i] + BLACK_WIDTH)
                 && inRange(y, piano_y, piano_y + BLACK_HEIGHT)) {
-                blackKey = true;
+                blackKey = 1;
                 keyID = i;
             }
         }
 
-        if (!blackKey) {
+        if (blackKey == 0) {
             for (let i = 0; i < 8; i++) {
                 if (inRange(x, whiteKeys[i], whiteKeys[i] + WHITE_WIDTH)
                     && inRange(y, piano_y, piano_y + WHITE_HEIGHT)) {
@@ -138,6 +188,19 @@ function mouseClicked(event) {
         keyPlayed = true;
         lastKey = keyID;
         lastKeyBlack = blackKey;
+
+        // print(lastKeyBlack + "," + lastKey);
+        port.println(lastKeyBlack + "," + lastKey);
+    }
+}
+
+function keyPressed() {
+    if (key == ' ') {
+        if (!port.opened()) //if the serial port is not open yet...
+        {
+            print("Opening port...");
+            port.open(baudRate); //open the serial port (the browser will ask which device to use)
+        }
     }
 }
 
