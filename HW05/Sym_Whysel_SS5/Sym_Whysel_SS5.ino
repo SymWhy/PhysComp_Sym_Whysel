@@ -25,25 +25,28 @@ void setup() {
 void loop() {
   if (Serial.available()) {
     inString = Serial.readStringUntil('\n');
+
     Serial.println(inString);
 
     // only expecting two values, both integers
     int index = inString.indexOf(',');
-    int blackKey = inString.substring(0, index).toInt();
-    int keyIdx = inString.substring(index + 1).toInt();
+    int keyHeld = inString.substring(0, index).toInt();
 
-    if (blackKey) frequency = tonesBlk[keyIdx];
-    else frequency = tonesWht[keyIdx];
+    // if the key has been released, stop playing.
+    if (keyHeld == 0) {
+      ledcWrite(PIEZO_PIN, 0);
+    } else {
 
-    ledcWriteTone(PIEZO_PIN, frequency);
-    ledcWrite(PIEZO_PIN, pulseWidth);
-    
-    lastMillis = millis();
-    waiting = true;
-  }
+      String inString2 = inString.substring(index + 1);
+      index = inString2.indexOf(',');
+      int blackKey = inString2.substring(0, index).toInt();
+      int keyIdx = inString2.substring(index + 1).toInt();
 
-  if (waiting && millis() - lastMillis > WAIT_TIME) {
-    waiting = false;
-    ledcWrite(PIEZO_PIN, 0);
+      if (blackKey) frequency = tonesBlk[keyIdx];
+      else frequency = tonesWht[keyIdx];
+
+      ledcWriteTone(PIEZO_PIN, frequency);
+      ledcWrite(PIEZO_PIN, pulseWidth);
+    }
   }
 }
