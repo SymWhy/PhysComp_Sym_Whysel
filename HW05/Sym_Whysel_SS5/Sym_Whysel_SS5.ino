@@ -28,6 +28,7 @@ void loop() {
 
     Serial.println(inString);
 
+    // source: https://arduino.stackexchange.com/questions/79551/read-comma-separated-string
     // only expecting two values, both integers
     int index = inString.indexOf(',');
     int keyHeld = inString.substring(0, index).toInt();
