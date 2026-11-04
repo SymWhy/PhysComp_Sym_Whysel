@@ -137,7 +137,7 @@ function drawPiano(pressed = false) {
     let lettersWht = ["C", "D", "E", "F", "G", "A", "B", "C"];
 
     for (let i = 0; i < 8; i++) {
-        text(lettersWht[i], whiteKeys[i] + (WHITE_WIDTH / 2) - 5, piano_y + WHITE_HEIGHT - 25);  //show message
+        text(lettersWht[i], whiteKeys[i] + (WHITE_WIDTH / 2) - 12, piano_y + WHITE_HEIGHT - 25);  //show message
     }
 
 
