@@ -3,21 +3,39 @@
     by Sym Whysel
 */
 
+
+/// SERIAL VARIABLES ///
 let port;                       // variable for Web Serial port instance
 let baudRate = 115200;          // NOTE: baud rate must match in Arduino sketch
+
+
+/// CONSTANTS///
 
 const X_COUNT = 8;
 const Y_COUNT = 1;
 const BOX_W = 75;
 const BOX_H = 75;
 
-let notes = [ 1, 0, 1, 0, 1, 0, 1, 0 ]; // notes that have been toggled
-let currentNote = 0;
-let noteSent = false; // Make sure we don't send the same note twice.
 
+/// VARIABLES ///
+
+let notes = [ 0, 0, 0, 0, 0, 0, 0, 0 ]; // notes that have been toggled
+let currentNote = 0;
+let waiting = false;
+let clicked = false;
+let lastState;
+
+let start_X;
+let start_Y;
+
+let values_X = [];
 let playing;
 let beat;
-let speed = 120;
+let speed;
+
+let inData;
+
+/// SYSTEM FUNCTIONS ///
 
 function setup() {
     //serial communication setup
@@ -33,8 +51,12 @@ function setup() {
     createCanvas(1080, 720); //set size of canvas
     background(255);
 
+    start_X = width/5;
+    start_Y = height/3;
+
+    populateX();
+
     playing = false;
-    beat = getBeat(speed);
 
     port.clear(); // clear the buffer after reading
     //NOTE: VERY IMPORTANT TO CLEAR BUFFER each frame, otherwise old data will accumulate and cause lag
@@ -42,19 +64,21 @@ function setup() {
 
 function draw() {
     readIncoming();
+    
+    speed = map(inData, 0, 255, 40, 270);
+    beat = getBeat(speed);
 
-    drawSequencer(width/5, height/3);
+    drawSequencer();
 
-    // if we are playing, send the current note state and then wait a beat.
-    if (playing) {
+    if (playing && waiting == false) {
+
+        waiting = true;
         sendData(notes[currentNote]);
         
-        let lastTime = millis();
-        while (millis() - lastTime < beat);
-
-        // source: https://stackoverflow.com/questions/52883995/how-to-loop-through-wrap-around-an-array-based-on-starting-index
-        // current note, add 1, then divide by the array length and get the remainder
-        currentNote = (currentNote + 1) % notes.length;
+        // source, timeout: https://www.w3schools.com/jsref/met_win_settimeout.asp#gsc.tab=0
+        // set an asynchronous timer to pause a beat before updating the 
+        // current note variable.
+        setTimeout(updateNote, beat);
     }
     
     if (!port.opened()) //if the port is not open...
@@ -67,33 +91,40 @@ function draw() {
 }
 
 
-// incoming string set up like:
-// 
-function readIncoming() {
-    //***___SERIAL READ___START
-    let inString = port.readUntil('\n');
+/// ACTION FUNCTIONS ///
 
-    if (inString.length > 0) //if we received serial data...
-    {
-        inString = inString.trim(); // remove newline char at end of message
 
+function populateX() {
+    let currentX = start_X;
+
+    for (let i = 0; i < notes.length; i++) {
+        values_X.push(currentX);
+        currentX += BOX_W;
     }
-
-    if (inString) print(inString);
 }
 
 
-function drawSequencer(startX, startY) {
+
+function readIncoming() {
+    if (port.availableBytes() > 0) //if there is data available on serial port...
+  {
+    inData = port.readByte(); // store incoming byte (0-255)
+    print(inData);
+    port.clear(); // clear the buffer after reading to avoid buffer overflow
+  }
+}
+
+
+function drawSequencer() {
     background(255);
     fill(255);
     stroke(0);
     strokeWeight(3);
 
-    let currentX = startX;
     let currentY;
 
     for (let i = 0; i < notes.length; i++) {
-        currentY = startY;
+        currentY = start_Y;
 
         // if playing, and the current note is active, fill red
         // if playing, and the current note is inactive, fill dk grey
@@ -107,14 +138,24 @@ function drawSequencer(startX, startY) {
         }
 
         for (let j = 0; j < Y_COUNT; j++) {
-            rect(currentX, currentY, BOX_W, BOX_H);
+            rect(values_X[i], currentY, BOX_W, BOX_H);
 
             currentY += BOX_H;
         }
-        currentX += BOX_W;
     }
 }
 
+function updateNote() {
+
+    // source, math: https://stackoverflow.com/questions/52883995/how-to-loop-through-wrap-around-an-array-based-on-starting-index
+    // set an asynchronous timer to pause a beat before updating the 
+    // current note variable.
+    currentNote = (currentNote + 1) % notes.length;
+    waiting = false;
+}
+
+
+/// UTILITY FUNCTIONS ///
 
 // data sent should look like:
 // note placement in array as int
@@ -127,9 +168,62 @@ function sendData(data) {
 
 
 function getBeat(bpm) {
+    //prevent divide by zero
+    if (bpm < 1) bpm = 1;
+
     // source: https://www.guitartrainingstudio.com/bpm-to-ms-calculator-for-delay-and-echo-effects/
     // divide 60,000 by the BPM
     return 60000 / bpm;
+}
+
+
+// source: https://www.reddit.com/r/learnjavascript/comments/rxm8nq/is_there_a_shorthand_way_of_checking_if_a/
+function inRange(number, start, end) {
+    return number >= start && number <= end
+}
+
+
+/// INTERACTIVE FUNCTIONS ///
+
+function mousePressed() {
+    let x = mouseX;
+    let y = mouseY;
+
+    clicked = true;
+
+    for (let i = 0; i < notes.length; i++) {
+        if (inRange(x, values_X[i], values_X[i] + BOX_W) &&
+            inRange(y, start_Y, start_Y + BOX_H)) {
+
+            if (notes[i] == 1) {
+                notes[i] = 0;
+                lastState = 0;
+            } else {
+                notes[i] = 1;
+                lastState = 1;
+            }
+        }
+    }
+
+    drawSequencer();
+}
+
+function mouseReleased() {
+    clicked = false;
+}
+
+function mouseDragged() {
+    if (clicked) {
+        let x = mouseX;
+        let y = mouseY;
+
+        for (let i = 0; i < notes.length; i++) {
+            if (inRange(x, values_X[i], values_X[i] + BOX_W) &&
+                inRange(y, start_Y, start_Y + BOX_H)) {
+                notes[i] = lastState;
+            }
+        }
+    }
 }
 
 
